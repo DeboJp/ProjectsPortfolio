@@ -146,9 +146,23 @@ function card(repo, imgUrl, excerpt){
 
 /** Renders a horizontal rail with a header and cards. */
 async function renderRail(rootEl, title, description, repos){
-  rootEl.innerHTML=''; const head=document.createElement('div'); head.className='section-head'; head.innerHTML=`<h2>${title}</h2><div class="section-desc">${description||''}</div>`; rootEl.appendChild(head);
-  const rail=document.createElement('div'); rail.className='rail'; const scroller=document.createElement('div'); scroller.className='scroller scroller--hero'; rail.appendChild(scroller); rootEl.appendChild(rail);
-  for(const r of repos){ const {img,excerpt}=await readmeMediaAndExcerpt(CONFIG.username,r); scroller.appendChild(card(r,img,excerpt)); }
+  rootEl.innerHTML='';
+  const head = document.createElement('div');
+  head.className='section-head';
+  head.innerHTML = `<h2>${title}</h2><div class="section-desc">${description||''}</div>`;
+  const rail = document.createElement('div');
+  rail.className='rail';
+  const scroller = document.createElement('div');
+  scroller.className='scroller scroller--hero';
+  rail.appendChild(scroller);
+  rootEl.append(head, rail);
+
+  // Fetch README/excerpts in parallel
+  const cards = await Promise.all(repos.map(async r=>{
+    const {img, excerpt} = await readmeMediaAndExcerpt(CONFIG.username, r);
+    return card(r, img, excerpt);
+  }));
+  cards.forEach(c => scroller.appendChild(c));
 }
 
 /** Creates a grid item for the all-projects section. */
@@ -209,36 +223,49 @@ function setBrand(user){
 }
 
 /** Main bootstrap: api calls, then build UI. */
+// main(): start both API calls first
 async function main(){
-  document.getElementById('year').textContent=new Date().getFullYear();
-  // smooth-scroll for top nav buttons is native via anchors; ensure sections exist
+  document.getElementById('year').textContent = new Date().getFullYear();
   try{
-    const [user, repos] = await Promise.all([ fetchUser(CONFIG.username), fetchRepos(CONFIG.username) ]);
+    const userP  = fetchUser(CONFIG.username);
+    const reposP = fetchRepos(CONFIG.username);
+
+    const user = await userP;          // paint brand asap
     setBrand(user);
+
+    const repos = await reposP;
     document.getElementById('repo-count').textContent = repos.length;
-    const totalStars = repos.reduce((a,r)=>a+r.stargazers_count,0); document.getElementById('total-stars').textContent = formatNum(totalStars);
+    const totalStars = repos.reduce((a,r)=>a+r.stargazers_count,0);
+    document.getElementById('total-stars').textContent = formatNum(totalStars);
 
-    const featuredNames=new Set((CONFIG.featured?.repos)||[]);
-    const featuredRepos=repos.filter(r=> featuredNames.has(r.name));
-    document.getElementById('featured-title').textContent=CONFIG.featured?.title||'Featured';
-    document.getElementById('featured-desc').textContent=CONFIG.featured?.description||'';
-    await renderRail(document.getElementById('featured-section'), CONFIG.featured?.title||'Featured', CONFIG.featured?.description||'', featuredRepos);
+    // Render grid immediately (no README calls)
+    populateLangFilter(repos);
+    renderGrid(repos);
 
-    const spotRoot=document.getElementById('spotlights'); spotRoot.innerHTML='';
-    for(const s of (CONFIG.spotlights||[])){
+    // Fire rails in parallel; no await
+    const featuredNames = new Set(CONFIG.featured?.repos || []);
+    const featuredRepos  = repos.filter(r => featuredNames.has(r.name));
+    renderRail(document.getElementById('featured-section'),
+               CONFIG.featured?.title || 'Featured',
+               CONFIG.featured?.description || '',
+               featuredRepos);
+
+    const spotRoot = document.getElementById('spotlights'); spotRoot.innerHTML = '';
+    for (const s of (CONFIG.spotlights || [])){
+      const wrap = document.createElement('section'); spotRoot.appendChild(wrap);
       let list=[];
-      if(s.repos && s.repos.length){ const set=new Set(s.repos); list=repos.filter(r=> set.has(r.name)); }
-      else if(s.filter){ list=repos.filter(r=>{ const okLang=!s.filter.language||s.filter.language.includes(r.language); const okStars=!('starsMin' in s.filter)||(r.stargazers_count>=(s.filter.starsMin||0)); return okLang&&okStars; }); }
-      if(list.length){ const wrap=document.createElement('section'); await renderRail(wrap, s.title||'Spotlight', s.description||'', list.slice(0,24)); spotRoot.appendChild(wrap); }
+      if (s.repos?.length){ const set = new Set(s.repos); list = repos.filter(r => set.has(r.name)); }
+      else if (s.filter){
+        list = repos.filter(r=>{
+          const okLang = !s.filter.language || s.filter.language.includes(r.language);
+          const okStars = !('starsMin' in s.filter) || (r.stargazers_count >= (s.filter.starsMin||0));
+          return okLang && okStars;
+        });
+      }
+      if (list.length) renderRail(wrap, s.title || 'Spotlight', s.description || '', list.slice(0,24));
     }
-
-    populateLangFilter(repos); renderGrid(repos);
-    document.getElementById('q').addEventListener('input', ()=> renderGrid(repos));
-    document.getElementById('lang').addEventListener('change', ()=> renderGrid(repos));
-    document.getElementById('sort').addEventListener('change', ()=> renderGrid(repos));
-  }catch(e){
-    console.error(e);
-    document.getElementById('grid').innerHTML='<div class="section-desc">Failed to load GitHub data.</div>';
+  }catch(e){ console.error(e); 
+    document.getElementById('grid').innerHTML='<div class="section-desc">Failed to load GitHub data.</div>'; 
   }
 }
 document.addEventListener('DOMContentLoaded', main);

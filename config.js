@@ -23,7 +23,7 @@ export const CONFIG = {
   featured: {
     title: 'Featured',
     description: 'Flagship projects front and center.',
-    repos: ['Flan-T5-Head-MLP-for-classification','DeboJp']
+    repos: ['Flan-T5-Head-MLP-for-classification','Calendar-Gmail-Agent-Scheduler','Ad-Recommender-w-LLM-CTR-scoring-via-MCP-interface-','Cosmos-Agentic-RAG-Task-Automation-Tool','dolly_email_assistant']
   },
 
   spotlights: [
