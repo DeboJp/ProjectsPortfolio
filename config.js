@@ -1,6 +1,6 @@
 export const CONFIG = {
   // exposed intentionally, to avoid vercel routing; dont abuse it (read-only access; will stop API for an hour if limit reached).
-  githubToken: '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',           
+  githubToken: '',           
   username: 'DeboJP',
 
   contact: {
