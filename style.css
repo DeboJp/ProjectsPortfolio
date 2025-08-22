@@ -60,7 +60,7 @@ section{ padding:22px 0 6px; }
 .scroller{ display:grid; grid-auto-flow:column; grid-auto-columns: minmax(280px, 360px); gap:16px; overflow-x:auto; overflow-y:visible; padding:12px 0 14px; scroll-snap-type:x mandatory; }
 .scroller::-webkit-scrollbar{ height:10px }
 .scroller::-webkit-scrollbar-thumb{ background:linear-gradient(90deg, var(--accent), var(--accent-3)); border-radius:999px }
-.scroller--hero .card{ max-height: 480px; }
+.scroller--hero .card{ max-height: 500px; }
 .scroller--hero .banner{ max-height: 260px; }
 
 /* Cards */
@@ -79,6 +79,40 @@ section{ padding:22px 0 6px; }
   mix-blend-mode: screen;
 }
 .card:hover{ transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: rgba(255,255,255,.2); z-index: 5; }
+
+/* Tag pills */
+.meta + .tags,
+.numbers + .tags {
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-pill {
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  line-height: 1.6;
+  border: 1px solid var(--pill-border, rgba(0,0,0,0.08));
+  background: var(--pill-bg, rgba(0,0,0,0.06));
+  color: var(--pill-fg, rgba(0,0,0,0.75));
+  backdrop-filter: blur(2px);
+  white-space: nowrap;
+}
+
+/* dark mode */
+@media (prefers-color-scheme: dark) {
+  .tag-pill {
+    --pill-border: rgba(255,255,255,0.14);
+    --pill-bg: rgba(255,255,255,0.08);
+    --pill-fg: rgba(255,255,255,0.85);
+  }
+}
 
 /* Glow blob overlay (performant) */
 .card .glow{

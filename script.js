@@ -27,10 +27,16 @@ function fetchWithTimeout(url, options={}, ms=15000){
 
 /** Builds headers for GitHub calls, attaching token when hitting API host. */
 function applyHeaders(url, headers={}){
-  const h={...headers, Accept:'application/vnd.github+json'};
-  try{ const u=new URL(url); if(u.hostname==='api.github.com' && CONFIG.githubToken && CONFIG.githubToken.trim()) h['Authorization']=`Bearer ${CONFIG.githubToken.trim()}`; }catch{}
+  const h={...headers, Accept:'application/vnd.github+json', 'X-GitHub-Api-Version':'2022-11-28'};
+  try{
+    const u=new URL(url);
+    if(u.hostname==='api.github.com' && CONFIG.githubToken && CONFIG.githubToken.trim()){
+      h['Authorization']=`Bearer ${CONFIG.githubToken.trim()}`;
+    }
+  }catch{}
   return h;
 }
+
 
 /** Formats ISO date into compact 'time ago'. */
 function timeAgo(iso){
@@ -107,10 +113,10 @@ async function readmeMediaAndExcerpt(username, repo){
     while((m=htmlRe.exec(text))!==null){ const n=normalizeImage(m[1], base); if(!isBadge(n) && isImageish(n)){ img=n; break; } }
   }
   // first meaningful line as excerpt
-  let excerpt=''; for(const ln of text.split(/\r?\n/)){ const s=ln.trim(); if(!s) continue; if(/^!\[/.test(s)) continue; if(/^<img/i.test(s)) continue; if(/^#/.test(s)) continue; excerpt=s.replace(/`([^`]+)`/g,'$1').replace(/\[([^\]]+)\]\([^\)]+\)/g,'$1'); if(excerpt) break; }
-  if(excerpt.length>220) excerpt = excerpt.slice(0,217)+'…';
+  let excerpt=pickExcerptFromReadme(text);
   const out={img, excerpt};
-  sessionStorage.setItem(key, JSON.stringify({t:Date.now(), v:out})); return out;
+  sessionStorage.setItem(key, JSON.stringify({t:Date.now(), v:out})); 
+  return out;
 }
 
 /** Attaches a smooth, jitter-free glow blob that follows the pointer. */
@@ -127,6 +133,86 @@ function attachGlow(elem){
   elem.addEventListener('pointerleave', onLeave, {passive:true});
 }
 
+/** Grabs tags of repos. */
+function extractTagsFromDesc(desc){
+  if(!desc) return [];
+  const out = [];
+
+  // [tag] style (ignore common non-tags)
+  const bad = new Set(['wip','archived','deprecated','beta','alpha']);
+  for (const m of desc.matchAll(/\[([^\]]{1,24})\]/g)) {
+    const tag = m[1].trim();
+    if (!bad.has(tag.toLowerCase()) && /[A-Za-z0-9]/.test(tag)) out.push(tag);
+  }
+
+  // #tag style (avoid headings; keep words/numbers/+-.)
+  for (const m of desc.matchAll(/(^|\s)#([A-Za-z0-9][A-Za-z0-9+_.-]{0,23})\b/g)) {
+    out.push(m[2]);
+  }
+
+  return out;
+}
+
+function getTags(repo, limit=5){
+  const fromTopics = Array.isArray(repo.topics) ? repo.topics.slice(0, limit+5) : [];
+  const fromDesc   = extractTagsFromDesc(repo.description);
+
+  // merge + dedupe, keep order preference: description first, then topics
+  const seen=new Set(), merged=[];
+  for (const t of [...fromDesc, ...fromTopics]) {
+    const k=t.toLowerCase();
+    if(!seen.has(k)){ seen.add(k); merged.push(t); }
+    if(merged.length>=limit) break;
+  }
+  return merged;
+}
+/** ignores .md text/image text */
+function pickExcerptFromReadme(text){
+  // Remove fenced code blocks entirely
+  text = text.replace(/```[\s\S]*?```/g, '\n');
+
+  const lines = text.split(/\r?\n/);
+  for (let raw of lines) {
+    let s = raw.trim();
+    if (!s) continue;
+
+    if (/^#/.test(s)) continue;                     
+    if (/^!\[/.test(s)) continue;                     
+    if (/^<(?:img|p|div|center|h\d|br|hr)\b/i.test(s)) continue; 
+
+    s = s.replace(/<img[^>]*>/gi, '');
+
+    s = s.replace(/<[^>]+>/g, '');
+
+    s = s
+      .replace(/!\[[^\]]*\]\([^)]+\)/g, '')   // images
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')// links
+      .replace(/`([^`]+)`/g, '$1')            // code ticks
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Skip badge-y stuff if it slipped through
+    if (/shields\.io|badgen\.net|badge|travis|circleci|codecov|sonarcloud/i.test(raw)) continue;
+
+    if (s) return s.length > 220 ? s.slice(0, 217) + '…' : s;
+  }
+  return '';
+}
+
+function makeTagsRow(tags){
+  if(!tags || !tags.length) return null;
+  const row = document.createElement('div');
+  row.className = 'tags';
+  for(const t of tags){
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.textContent = t;
+    row.appendChild(pill);
+  }
+  return row;
+}
+
+
 /** Creates a featured/special card with optional banner and excerpt. */
 function card(repo, imgUrl, excerpt){
   const el=document.createElement('article'); el.className='card';
@@ -134,9 +220,16 @@ function card(repo, imgUrl, excerpt){
   const body=document.createElement('div'); body.className='card-body'; el.appendChild(body);
   const h=document.createElement('h3'); h.textContent=repo.name; body.appendChild(h);
   const p=document.createElement('p'); p.textContent=(excerpt||repo.description||'No description.'); body.appendChild(p);
-  const meta=document.createElement('div'); meta.className='meta';
-  const parts=[`★ ${formatNum(repo.stargazers_count)}`]; if(repo.language) parts.push(repo.language); parts.push(`Updated ${timeAgo(repo.pushed_at)}`);
-  meta.textContent=parts.join(' · '); body.appendChild(meta);
+  const meta=document.createElement('div'); 
+  meta.className='meta';
+  const parts=[`★ ${formatNum(repo.stargazers_count)}`];
+  if(repo.language) parts.push(repo.language);
+  parts.push(`Updated ${timeAgo(repo.pushed_at)}`);
+  meta.textContent = parts.join(' · ');
+  body.appendChild(meta);
+  const tags = getTags(repo);
+  const tagsRow = makeTagsRow(tags);
+  if(tagsRow) body.appendChild(tagsRow);
   const links=document.createElement('div'); links.className='links';
   const a=document.createElement('a'); a.className='link'; a.href=repo.html_url; a.target='_blank'; a.rel='noopener'; a.innerHTML=`<svg class="inline-icon"><use href="#i-github"/></svg> Repo`; links.appendChild(a);
   if(repo.homepage){ const l=document.createElement('a'); l.className='link'; l.href=repo.homepage; l.target='_blank'; l.rel='noopener'; l.innerHTML=`<svg class="inline-icon"><use href="#i-external"/></svg> Live`; links.appendChild(l); }
@@ -157,6 +250,9 @@ function gridItem(repo){
   const h=document.createElement('h4'); h.textContent=repo.name; el.appendChild(h);
   const d=document.createElement('p'); d.textContent=repo.description||'No description.'; el.appendChild(d);
   const nums=document.createElement('div'); nums.className='numbers'; const parts=[`★ ${formatNum(repo.stargazers_count)}`]; if(repo.language) parts.push(repo.language); parts.push(`Updated ${timeAgo(repo.pushed_at)}`); nums.textContent=parts.join(' · '); el.appendChild(nums);
+  const tags = getTags(repo);
+  const tagsRow = makeTagsRow(tags);
+  if(tagsRow) el.appendChild(tagsRow);
   const cta=document.createElement('div'); cta.className='cta'; const links=document.createElement('div'); links.className='links';
   const a=document.createElement('a'); a.className='link'; a.href=repo.html_url; a.target='_blank'; a.rel='noopener'; a.innerHTML=`<svg class="inline-icon"><use href="#i-github"/></svg> Repo`; links.appendChild(a);
   if(repo.homepage){ const l=document.createElement('a'); l.className='link'; l.href=repo.homepage; l.target='_blank'; l.rel='noopener'; l.innerHTML=`<svg class="inline-icon"><use href="#i-external"/></svg> Live`; links.appendChild(l); }
