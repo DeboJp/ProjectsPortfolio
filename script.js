@@ -297,11 +297,19 @@ async function renderRail(rootEl, title, description, repos){
     return el;
   });
   scroller.appendChild(frag);
-
-  // using promise.all for concurrent fetch
-  const media = await Promise.all(
-    repos.map(r => readmeMediaAndExcerpt(CONFIG.username, r))
-  );
+  
+  //streaming each card as soon as its README/media is ready
+  repos.forEach(async (r, i) => {
+    try {
+      const { img, excerpt } = await readmeMediaAndExcerpt(CONFIG.username, r);
+      const old = placeholders[i];
+      const updated = card(r, img, excerpt || (r.description || 'No description.'));
+      updated.classList.remove('skeleton-card');
+      scroller.replaceChild(updated, old);
+    } catch (e) {
+      console.error(e);
+    }
+  });
 
   const patchFrag = document.createDocumentFragment();
   repos.forEach((r, i) => {
@@ -437,17 +445,23 @@ async function main(){
     langEl?.addEventListener('change', () => renderGrid(repos));
     sortEl?.addEventListener('change', () => renderGrid(repos));
 
-    const featuredNames=new Set((CONFIG.featured?.repos)||[]);
-    const featuredRepos=repos.filter(r=> featuredNames.has(r.name));
+    // --- Featured ---
+    const featuredNames = new Set((CONFIG.featured?.repos) || []);
+    const featuredRepos = repos.filter(r => featuredNames.has(r.name));
 
-    document.getElementById('featured-title').textContent=CONFIG.featured?.title||'Featured';
-    document.getElementById('featured-desc').textContent=CONFIG.featured?.description||'';
+    document.getElementById('featured-title').textContent = CONFIG.featured?.title || 'Featured';
+    document.getElementById('featured-desc').textContent  = CONFIG.featured?.description || '';
 
-    renderRail(document.getElementById('featured-section'),
-               CONFIG.featured?.title||'Featured',
-               CONFIG.featured?.description||'',
-               featuredRepos).catch(console.error);
+    const featuredSection = document.getElementById('featured-section');
+    // kick off async render; don't await (skeletons show immediately)
+    renderRail(
+      featuredSection,
+      CONFIG.featured?.title || 'Featured',
+      CONFIG.featured?.description || '',
+      featuredRepos
+    ).catch(console.error);
 
+    // --- Spotlights ---
     const spotRoot = document.getElementById('spotlights');
     spotRoot.innerHTML = '';
     for (const s of (CONFIG.spotlights || [])) {
@@ -455,14 +469,16 @@ async function main(){
       if (!list.length) continue;
 
       const wrap = document.createElement('section');
+      // attach first so skeletons can paint right away
+      spotRoot.appendChild(wrap);
+
+      // kick off async render; don't await
       renderRail(
         wrap,
         s.title || 'Spotlight',
         s.description || '',
         list
-      )
-        .then(() => spotRoot.appendChild(wrap))
-        .catch(console.error);
+      ).catch(console.error);
     }
   }catch(e){
     console.error(e);
