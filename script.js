@@ -146,23 +146,9 @@ function card(repo, imgUrl, excerpt){
 
 /** Renders a horizontal rail with a header and cards. */
 async function renderRail(rootEl, title, description, repos){
-  rootEl.innerHTML='';
-  const head = document.createElement('div');
-  head.className='section-head';
-  head.innerHTML = `<h2>${title}</h2><div class="section-desc">${description||''}</div>`;
-  const rail = document.createElement('div');
-  rail.className='rail';
-  const scroller = document.createElement('div');
-  scroller.className='scroller scroller--hero';
-  rail.appendChild(scroller);
-  rootEl.append(head, rail);
-
-  // Fetch README/excerpts in parallel
-  const cards = await Promise.all(repos.map(async r=>{
-    const {img, excerpt} = await readmeMediaAndExcerpt(CONFIG.username, r);
-    return card(r, img, excerpt);
-  }));
-  cards.forEach(c => scroller.appendChild(c));
+  rootEl.innerHTML=''; const head=document.createElement('div'); head.className='section-head'; head.innerHTML=`<h2>${title}</h2><div class="section-desc">${description||''}</div>`; rootEl.appendChild(head);
+  const rail=document.createElement('div'); rail.className='rail'; const scroller=document.createElement('div'); scroller.className='scroller scroller--hero'; rail.appendChild(scroller); rootEl.appendChild(rail);
+  for(const r of repos){ const {img,excerpt}=await readmeMediaAndExcerpt(CONFIG.username,r); scroller.appendChild(card(r,img,excerpt)); }
 }
 
 /** Creates a grid item for the all-projects section. */
@@ -185,11 +171,46 @@ function populateLangFilter(repos){
 
 /** Applies search / language / sort transforms to repo list. */
 function filterAndSort(repos){
-  const q=$('#q').value.toLowerCase().trim(), lang=$('#lang').value, sort=$('#sort').value;
-  let r=repos.filter(x=>{ const okQ=!q||(x.name.toLowerCase().includes(q)||(x.description||'').toLowerCase().includes(q)); const okL=!lang||x.language===lang; return okQ&&okL; });
-  if(sort==='stars') r.sort((a,b)=> b.stargazers_count - a.stargazers_count);
-  if(sort==='updated') r.sort((a,b)=> new Date(b.pushed_at)-new Date(a.pushed_at));
-  if(sort==='name') r.sort((a,b)=> a.name.localeCompare(b.name));
+  const qEl   = document.querySelector('#q');
+  const langEl= document.querySelector('#lang');
+  const sortEl= document.querySelector('#sort');
+
+  const q    = (qEl?.value || '').toLowerCase().trim();
+  const lang = (langEl?.value || '');
+  const sort = (sortEl?.value || 'stars');
+
+  const qTerms = q ? q.split(/\s+/).filter(Boolean) : [];
+
+  let r = repos.filter(x => {
+    const name = (x.name || '').toLowerCase();
+    const desc = (x.description || '').toLowerCase();
+    const langOk = !lang || x.language === lang;
+    const qOk = !q || qTerms.every(t => name.includes(t) || desc.includes(t));
+    return langOk && qOk;
+  });
+
+  const safeDate = d => (d ? new Date(d).getTime() : 0);
+
+  switch (sort) {
+    case 'updated':
+      r.sort((a,b) =>
+        safeDate(b.pushed_at) - safeDate(a.pushed_at) ||
+        (b.stargazers_count - a.stargazers_count) ||
+        a.name.localeCompare(b.name)
+      );
+      break;
+    case 'name':
+      r.sort((a,b) => a.name.localeCompare(b.name));
+      break;
+    case 'stars':
+    default:
+      r.sort((a,b) =>
+        (b.stargazers_count - a.stargazers_count) ||
+        (safeDate(b.pushed_at) - safeDate(a.pushed_at)) ||
+        a.name.localeCompare(b.name)
+      );
+      break;
+  }
   return r;
 }
 
@@ -223,49 +244,70 @@ function setBrand(user){
 }
 
 /** Main bootstrap: api calls, then build UI. */
-// main(): start both API calls first
 async function main(){
-  document.getElementById('year').textContent = new Date().getFullYear();
+  document.getElementById('year').textContent=new Date().getFullYear();
   try{
-    const userP  = fetchUser(CONFIG.username);
-    const reposP = fetchRepos(CONFIG.username);
+    const [user, repos] = await Promise.all([
+      fetchUser(CONFIG.username),
+      fetchRepos(CONFIG.username)
+    ]);
 
-    const user = await userP;          // paint brand asap
     setBrand(user);
-
-    const repos = await reposP;
     document.getElementById('repo-count').textContent = repos.length;
     const totalStars = repos.reduce((a,r)=>a+r.stargazers_count,0);
     document.getElementById('total-stars').textContent = formatNum(totalStars);
 
-    // Render grid immediately (no README calls)
     populateLangFilter(repos);
     renderGrid(repos);
 
-    // Fire rails in parallel; no await
-    const featuredNames = new Set(CONFIG.featured?.repos || []);
-    const featuredRepos  = repos.filter(r => featuredNames.has(r.name));
-    renderRail(document.getElementById('featured-section'),
-               CONFIG.featured?.title || 'Featured',
-               CONFIG.featured?.description || '',
-               featuredRepos);
+    const qEl   = document.getElementById('q');
+    const langEl= document.getElementById('lang');
+    const sortEl= document.getElementById('sort');
 
-    const spotRoot = document.getElementById('spotlights'); spotRoot.innerHTML = '';
-    for (const s of (CONFIG.spotlights || [])){
-      const wrap = document.createElement('section'); spotRoot.appendChild(wrap);
+    let tId=null;
+    qEl?.addEventListener('input', () => {
+      clearTimeout(tId);
+      tId = setTimeout(() => renderGrid(repos), 80);
+    });
+    langEl?.addEventListener('change', () => renderGrid(repos));
+    sortEl?.addEventListener('change', () => renderGrid(repos));
+
+    const featuredNames=new Set((CONFIG.featured?.repos)||[]);
+    const featuredRepos=repos.filter(r=> featuredNames.has(r.name));
+
+    document.getElementById('featured-title').textContent=CONFIG.featured?.title||'Featured';
+    document.getElementById('featured-desc').textContent=CONFIG.featured?.description||'';
+
+    renderRail(document.getElementById('featured-section'),
+               CONFIG.featured?.title||'Featured',
+               CONFIG.featured?.description||'',
+               featuredRepos).catch(console.error);
+
+    const spotRoot=document.getElementById('spotlights');
+    spotRoot.innerHTML='';
+    for(const s of (CONFIG.spotlights||[])){
       let list=[];
-      if (s.repos?.length){ const set = new Set(s.repos); list = repos.filter(r => set.has(r.name)); }
-      else if (s.filter){
-        list = repos.filter(r=>{
+      if(s.repos?.length){
+        const set=new Set(s.repos);
+        list=repos.filter(r=> set.has(r.name));
+      }else if(s.filter){
+        list=repos.filter(r=>{
           const okLang = !s.filter.language || s.filter.language.includes(r.language);
-          const okStars = !('starsMin' in s.filter) || (r.stargazers_count >= (s.filter.starsMin||0));
+          const okStars= !('starsMin' in s.filter) || (r.stargazers_count>=(s.filter.starsMin||0));
           return okLang && okStars;
         });
       }
-      if (list.length) renderRail(wrap, s.title || 'Spotlight', s.description || '', list.slice(0,24));
+      if(list.length){
+        const wrap=document.createElement('section');
+        renderRail(wrap, s.title||'Spotlight', s.description||'', list.slice(0,24))
+          .then(()=> spotRoot.appendChild(wrap))
+          .catch(console.error);
+      }
     }
-  }catch(e){ console.error(e); 
-    document.getElementById('grid').innerHTML='<div class="section-desc">Failed to load GitHub data.</div>'; 
+  }catch(e){
+    console.error(e);
+    const grid = document.getElementById('grid');
+    if (grid) grid.innerHTML='<div class="section-desc">Failed to load GitHub data.</div>';
   }
 }
 document.addEventListener('DOMContentLoaded', main);
