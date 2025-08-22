@@ -119,16 +119,11 @@ function resolveSpotlightSpec(s, repos){
   const explicitNames = Array.isArray(s.repos) ? s.repos : [];
   const explicitSet   = new Set(explicitNames);
 
-  const explicit = explicitNames
-    .map(n => repos.find(r => r.name === n))
-    .filter(Boolean);
-
-  const filtered = repos
-    .filter(r => !explicitSet.has(r.name) && matchesFilter(r, s.filter))
-    .sort((a,b) => new Date(b.pushed_at) - new Date(a.pushed_at));
-
-  const merged = [...explicit, ...filtered];
-  return s.limit ? merged.slice(0, s.limit) : merged;
+  const combined = repos.filter(r =>
+    explicitSet.has(r.name) || matchesFilter(r, s.filter)
+  );
+  combined.sort((a,b) => new Date(b.pushed_at) - new Date(a.pushed_at));
+  return s.limit ? combined.slice(0, s.limit) : combined;
 }
 /** Fetches a repo’s README, extracts first valid image + short text excerpt, with session caching */
 async function readmeMediaAndExcerpt(username, repo){
@@ -271,10 +266,51 @@ function card(repo, imgUrl, excerpt){
 }
 
 /** Renders a horizontal rail with a header and cards. */
+// async function renderRail(rootEl, title, description, repos){
+//   rootEl.innerHTML=''; const head=document.createElement('div'); head.className='section-head'; head.innerHTML=`<h2>${title}</h2><div class="section-desc">${description||''}</div>`; rootEl.appendChild(head);
+//   const rail=document.createElement('div'); rail.className='rail'; const scroller=document.createElement('div'); scroller.className='scroller scroller--hero'; rail.appendChild(scroller); rootEl.appendChild(rail);
+//   for(const r of repos){ const {img,excerpt}=await readmeMediaAndExcerpt(CONFIG.username,r); scroller.appendChild(card(r,img,excerpt)); }
+// }
+
+// optimized renderRail
 async function renderRail(rootEl, title, description, repos){
-  rootEl.innerHTML=''; const head=document.createElement('div'); head.className='section-head'; head.innerHTML=`<h2>${title}</h2><div class="section-desc">${description||''}</div>`; rootEl.appendChild(head);
-  const rail=document.createElement('div'); rail.className='rail'; const scroller=document.createElement('div'); scroller.className='scroller scroller--hero'; rail.appendChild(scroller); rootEl.appendChild(rail);
-  for(const r of repos){ const {img,excerpt}=await readmeMediaAndExcerpt(CONFIG.username,r); scroller.appendChild(card(r,img,excerpt)); }
+  rootEl.innerHTML='';
+  const head=document.createElement('div');
+  head.className='section-head';
+  head.innerHTML=`<h2>${title}</h2><div class="section-desc">${description||''}</div>`;
+
+  const rail=document.createElement('div');
+  rail.className='rail';
+  const scroller=document.createElement('div');
+  scroller.className='scroller scroller--hero';
+  rail.appendChild(scroller);
+
+  rootEl.appendChild(head);
+  rootEl.appendChild(rail);
+
+  // create skeletons - fast first paint
+  const frag = document.createDocumentFragment();
+  const placeholders = repos.map(r => {
+    const el = card(r, null, r.description || ''); 
+    el.classList.add('skeleton-card');             
+    frag.appendChild(el);
+    return el;
+  });
+  scroller.appendChild(frag);
+
+  // using promise.all for concurrent fetch
+  const media = await Promise.all(
+    repos.map(r => readmeMediaAndExcerpt(CONFIG.username, r))
+  );
+
+  const patchFrag = document.createDocumentFragment();
+  repos.forEach((r, i) => {
+    const old = placeholders[i];
+    const { img, excerpt } = media[i];
+    const updated = card(r, img, excerpt || (r.description || 'No description.'));
+    updated.classList.remove('skeleton-card');
+    scroller.replaceChild(updated, old);
+  });
 }
 
 /** Creates a grid item for the all-projects section. */
