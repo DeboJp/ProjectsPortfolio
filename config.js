@@ -27,8 +27,18 @@ export const CONFIG = {
   },
 
   spotlights: [
-    { title: 'Web & Apps', description: 'Frontend & full‑stack.', filter: { language: ['JavaScript','TypeScript','HTML','CSS'] } }
+    { title: 'Web & Apps', 
+      description: 'Frontend & full‑stack.', 
+      repos: ['Maps_Engine_Seattle'],
+      filter: { language: ['JavaScript','TypeScript','HTML','CSS'] },
+    }
   ],
+
+  // spotlights: {
+  //   title: 'Web & Apps',
+  //   description: 'Frontend & full‑stack.',
+  //   repos: ['Maps_Engine_Seattle','ProjectsPortfolio','StoryTeller','medicine-list','dolly_email_assistant','Food-Program-UW','Personal-Projects']
+  // },
 
   readmeStrategy: 'fast',
   cacheTtlMs: 30 * 60 * 1000

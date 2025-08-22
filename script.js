@@ -80,7 +80,7 @@ function normalizeImage(raw, base){
 }
 function isImageish(u){ return /\.(png|jpe?g|gif|webp|svg)(\?|#|$)/i.test(u) || /user-attachments\/assets\//i.test(u) || /\/assets\//.test(u) || /user-images\.githubusercontent\.com/i.test(u); }
 function isBadge(u){ return /shields\.io|badgen\.net|badge|coveralls|travis|circleci|codecov|sonarcloud/i.test(u); }
-
+/**Attempts to fetch a repo’s README quickly (tries default branch, then master) and returns text + base URL */
 async function fetchReadmeFast(username, repo){
   const branch = repo.default_branch || 'main';
   for(const name of COMMON_READMES){
@@ -97,7 +97,40 @@ async function fetchReadmeFast(username, repo){
   }
   return null;
 }
+/** Checksif a repo matches a spotlight filter (by language, stars, topics, and optional exclusions) */
+function matchesFilter(repo, f){
+  if(!f) return true;
 
+  const okLang   = !f.language || f.language.includes(repo.language);
+  const okStars  = !(f.starsMin >= 0) || (repo.stargazers_count >= f.starsMin);
+  const okTopics = !f.topics || (Array.isArray(repo.topics) && repo.topics.some(t => f.topics.includes(t)));
+
+  const notExcluded =
+    !f.exclude ||
+    (
+      !(f.exclude.names && f.exclude.names.includes(repo.name)) &&
+      !(f.exclude.topics && Array.isArray(repo.topics) && repo.topics.some(t => f.exclude.topics.includes(t)))
+    );
+
+  return okLang && okStars && okTopics && notExcluded;
+}
+/** Resolves a spotlight spec: merge explicit repos + filtered repos, sorted by last updated */
+function resolveSpotlightSpec(s, repos){
+  const explicitNames = Array.isArray(s.repos) ? s.repos : [];
+  const explicitSet   = new Set(explicitNames);
+
+  const explicit = explicitNames
+    .map(n => repos.find(r => r.name === n))
+    .filter(Boolean);
+
+  const filtered = repos
+    .filter(r => !explicitSet.has(r.name) && matchesFilter(r, s.filter))
+    .sort((a,b) => new Date(b.pushed_at) - new Date(a.pushed_at));
+
+  const merged = [...explicit, ...filtered];
+  return s.limit ? merged.slice(0, s.limit) : merged;
+}
+/** Fetches a repo’s README, extracts first valid image + short text excerpt, with session caching */
 async function readmeMediaAndExcerpt(username, repo){
   const key=`readme_fast:${username}/${repo.name}`; try{ const c=JSON.parse(sessionStorage.getItem(key)||'null'); if(c && Date.now()-c.t < CONFIG.cacheTtlMs) return c.v; }catch{}
   const fetched = await fetchReadmeFast(username, repo);
@@ -379,26 +412,21 @@ async function main(){
                CONFIG.featured?.description||'',
                featuredRepos).catch(console.error);
 
-    const spotRoot=document.getElementById('spotlights');
-    spotRoot.innerHTML='';
-    for(const s of (CONFIG.spotlights||[])){
-      let list=[];
-      if(s.repos?.length){
-        const set=new Set(s.repos);
-        list=repos.filter(r=> set.has(r.name));
-      }else if(s.filter){
-        list=repos.filter(r=>{
-          const okLang = !s.filter.language || s.filter.language.includes(r.language);
-          const okStars= !('starsMin' in s.filter) || (r.stargazers_count>=(s.filter.starsMin||0));
-          return okLang && okStars;
-        });
-      }
-      if(list.length){
-        const wrap=document.createElement('section');
-        renderRail(wrap, s.title||'Spotlight', s.description||'', list.slice(0,24))
-          .then(()=> spotRoot.appendChild(wrap))
-          .catch(console.error);
-      }
+    const spotRoot = document.getElementById('spotlights');
+    spotRoot.innerHTML = '';
+    for (const s of (CONFIG.spotlights || [])) {
+      const list = resolveSpotlightSpec(s, repos);
+      if (!list.length) continue;
+
+      const wrap = document.createElement('section');
+      renderRail(
+        wrap,
+        s.title || 'Spotlight',
+        s.description || '',
+        list
+      )
+        .then(() => spotRoot.appendChild(wrap))
+        .catch(console.error);
     }
   }catch(e){
     console.error(e);
