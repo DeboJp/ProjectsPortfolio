@@ -116,15 +116,27 @@ function matchesFilter(repo, f){
 }
 /** Resolves a spotlight spec: merge explicit repos + filtered repos, sorted by last updated */
 function resolveSpotlightSpec(s, repos){
-  const explicitNames = Array.isArray(s.repos) ? s.repos : [];
-  const explicitSet   = new Set(explicitNames);
+  const explicitNames = (Array.isArray(s.repos) ? s.repos : []).filter(Boolean); // strip '', null, etc.
+  const hasRepos  = explicitNames.length > 0;
+  const hasFilter = !!(s.filter && Object.keys(s.filter).length);
 
-  const combined = repos.filter(r =>
-    explicitSet.has(r.name) || matchesFilter(r, s.filter)
-  );
+  let combined = [];
+  if (hasRepos && hasFilter) {
+    const explicitSet = new Set(explicitNames);
+    combined = repos.filter(r => explicitSet.has(r.name) || matchesFilter(r, s.filter));
+  } else if (hasRepos) {
+    const explicitSet = new Set(explicitNames);
+    combined = repos.filter(r => explicitSet.has(r.name));
+  } else if (hasFilter) {
+    combined = repos.filter(r => matchesFilter(r, s.filter));
+  } else {
+    combined = []; // neither repos nor filter → show nothing
+  }
+
   combined.sort((a,b) => new Date(b.pushed_at) - new Date(a.pushed_at));
   return s.limit ? combined.slice(0, s.limit) : combined;
 }
+
 /** Fetches a repo’s README, extracts first valid image + short text excerpt, with session caching */
 async function readmeMediaAndExcerpt(username, repo){
   const key=`readme_fast:${username}/${repo.name}`; try{ const c=JSON.parse(sessionStorage.getItem(key)||'null'); if(c && Date.now()-c.t < CONFIG.cacheTtlMs) return c.v; }catch{}
@@ -309,15 +321,6 @@ async function renderRail(rootEl, title, description, repos){
     } catch (e) {
       console.error(e);
     }
-  });
-
-  const patchFrag = document.createDocumentFragment();
-  repos.forEach((r, i) => {
-    const old = placeholders[i];
-    const { img, excerpt } = media[i];
-    const updated = card(r, img, excerpt || (r.description || 'No description.'));
-    updated.classList.remove('skeleton-card');
-    scroller.replaceChild(updated, old);
   });
 }
 

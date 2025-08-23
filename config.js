@@ -21,16 +21,20 @@ export const CONFIG = {
   excludeRepos: [],
 
   featured: {
-    title: 'Featured',
+    title: 'Featured (5)',
     description: 'Flagship projects front and center.',
     repos: ['QLoRA-Fine-Tuning-FLAN-T5-Large-for-Stance-Classification-An-Exploration','Calendar-Gmail-Agent-Scheduler','Ad-Recommender-w-LLM-CTR-scoring-via-MCP-interface-','Cosmos-Agentic-RAG-Task-Automation-Tool','dolly_email_assistant']
   },
 
   spotlights: [
-    { title: 'Web & Apps', 
+    { title: 'AI/ML & DataSciencs (21)', 
+      description: 'Research, Training, Analysis & Applications.', 
+      repos: ['QLoRA-Fine-Tuning-FLAN-T5-Large-for-Stance-Classification-An-Exploration','Calendar-Gmail-Agent-Scheduler','Ad-Recommender-w-LLM-CTR-scoring-via-MCP-interface-','Cosmos-Agentic-RAG-Task-Automation-Tool','Minimax-Based-AI-Player-for-Teeko','Convolutional-Neural-Network-CNN-for-MiniPlaces-Classification','A-star-Solver-for-a-8-Tile-Puzzle','Neural-Network-to-classify-MNIST-Images-w-PyTorch','Income-Percentiles-and-the-Gender-Gap-Study', 'Linear-Regression-on-Lake-Mendota-Ice-Records','Clustering-Countries-on-Socioeconomic-Indicators', 'Principal-Component-Analysis-Grayscale-Images','Character-Level-Bayesian-Language-Identifier', 'dolly_email_assistant', 'medicine-list','EduHelp','ComputerVisionNotebook','EconSense','StoryTeller', 'text-to-music', 'Mental-Health-ChatBot'],
+    },
+    { title: 'Web & Apps (7)', 
       description: 'Frontend & full‑stack.', 
-      repos: ['Maps_Engine_Seattle'],
-      filter: { language: ['JavaScript','TypeScript','HTML','CSS'] },
+      repos: ['medicine-list','StoryTeller','ProjectsPortfolio','Maps_Engine_Seattle','dolly_email_assistant', 'Personal-Projects', 'Food-Program-UW'],
+      // filter: { language: ['JavaScript','TypeScript','HTML','CSS'] },
     }
   ],
 
