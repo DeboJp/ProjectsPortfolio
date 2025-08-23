@@ -449,8 +449,7 @@ async function main(){
     sortEl?.addEventListener('change', () => renderGrid(repos));
 
     // --- Featured ---
-    const featuredNames = new Set((CONFIG.featured?.repos) || []);
-    const featuredRepos = repos.filter(r => featuredNames.has(r.name));
+    const featuredRepos = (CONFIG.featured?.repos || []) .map(name => repos.find(r => r.name === name)).filter(Boolean);
 
     document.getElementById('featured-title').textContent = CONFIG.featured?.title || 'Featured';
     document.getElementById('featured-desc').textContent  = CONFIG.featured?.description || '';
