@@ -23,7 +23,7 @@ export const CONFIG = {
   featured: {
     title: 'Featured (5)',
     description: 'Flagship projects front and center.',
-    repos: ['QLoRA-Fine-Tuning-FLAN-T5-Large-for-Stance-Classification-An-Exploration','Calendar-Gmail-Agent-Scheduler','Ad-Recommender-w-LLM-CTR-scoring-via-MCP-interface-','Cosmos-Agentic-RAG-Task-Automation-Tool','dolly_email_assistant']
+    repos: ['QLoRA-Fine-Tuning-FLAN-T5-Large-for-Stance-Classification-An-Exploration','Calendar-Gmail-Agent-Orchestration','Ad-Recommender-w-LLM-CTR-scoring-via-MCP-interface-','Cosmos-Agentic-RAG-Task-Automation-Tool','dolly_email_assistant']
   },
 
   spotlights: [
