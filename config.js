@@ -22,8 +22,8 @@ export const CONFIG = {
 
   featured: {
     title: 'Featured (5)',
-    description: 'Flagship projects front and center.',
-    repos: ['QLoRA-Fine-Tuning-FLAN-T5-Large-for-Stance-Classification-An-Exploration','Calendar-Gmail-Agent-Orchestration','Ad-Recommender-w-LLM-CTR-scoring-via-MCP-interface-','Cosmos-Agentic-RAG-Task-Automation-Tool','dolly_email_assistant']
+    description: 'Key projects to demonstrate Skills and Interests.',
+    repos: ['QLoRA-Fine-Tuning-FLAN-T5-Large-for-Stance-Classification-An-Exploration','Calendar-Gmail-Agent-Orchestration-w-LangGraph-and-Ollama','Ad-Recommender-w-LLM-CTR-scoring-via-MCP-interface-','Cosmos-Agentic-RAG-Task-Automation-Tool','dolly_email_assistant']
   },
 
   spotlights: [
@@ -35,7 +35,7 @@ export const CONFIG = {
         'text-to-music', 'Mental-Health-ChatBot', 'DresserToGo','Accessible-Campus-Chat-Agent'],
     },
     { title: 'Web & Apps (10)', 
-      description: 'Frontend & full‑stack.', 
+      description: 'Frontend & Full‑stack.', 
       repos: ['DresserToGo','Accessible-Campus-Chat-Agent','UW-Newsletters-campus-wide-bulletinBoard','medicine-list','StoryTeller','ProjectsPortfolio','Maps_Engine_Seattle','dolly_email_assistant', 'Personal-Projects', 'Food-Program-UW'],
       // filter: { language: ['JavaScript','TypeScript','HTML','CSS'] },
     }
